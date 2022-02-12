@@ -457,6 +457,25 @@ char *getRetCode(ASI_ERROR_CODE code)
     return(retCodeBuffer);
 }
 
+char *getCameraMode(ASI_CAMERA_MODE mode)
+{
+	static char retModeBuffer[100];
+	std::string ret;
+
+	if (mode == ASI_MODE_NORMAL) ret = "NORMAL";
+	else if (mode == ASI_MODE_TRIG_SOFT_EDGE) ret = "TRIG_SOFT_EDGE";
+	else if (mode == ASI_MODE_TRIG_RISE_EDGE) ret = "TRIG_RISE_EDGE";
+	else if (mode == ASI_MODE_TRIG_FALL_EDGE) ret = "TRIG_FALL_EDGE";
+	else if (mode == ASI_MODE_TRIG_SOFT_LEVEL) ret = "TRIG_SOFT_LEVEL";
+	else if (mode == ASI_MODE_TRIG_HIGH_LEVEL) ret = "TRIG_HIGH_LEVEL";
+	else if (mode == ASI_MODE_TRIG_LOW_LEVEL) ret = "TRIG_LOW_LEVEL";
+	else if (mode == ASI_MODE_END) ret = "End of list";
+	else ret = "UNKNOWN MODE";
+
+    sprintf(retModeBuffer, "%s (%d)", ret.c_str(), (int) mode);
+    return(retModeBuffer);
+}
+
 long roundTo(long n, int roundTo)
 {
     long a = (n / roundTo) * roundTo;	// Smaller multiple
@@ -1833,6 +1852,18 @@ const char *locale = DEFAULT_LOCALE;
         printf("\n");
     }
 
+    ASIGetControlValue(CamNum, ASI_TEMPERATURE, &actualTemp, &bAuto);
+    printf("- Sensor temperature: %0.2f\n", (float)actualTemp / 10.0);
+
+	ASI_CAMERA_MODE CamMode;
+	asiRetCode = ASIGetCameraMode(CamNum, &CamMode);
+    if (asiRetCode != ASI_SUCCESS)
+    {
+        printf("*** ERROR getting camera mode (%s)\n", getRetCode(asiRetCode));
+        closeUp(100);      // Can't do anything so might as well exit.
+    }
+	printf("  - Current camera mode: %s\n", getCameraMode(CamMode));
+
     asiRetCode = ASIInitCamera(CamNum);
     if (asiRetCode != ASI_SUCCESS)
     {
@@ -1914,8 +1945,28 @@ const char *locale = DEFAULT_LOCALE;
         }
     }
 
-    ASIGetControlValue(CamNum, ASI_TEMPERATURE, &actualTemp, &bAuto);
-    printf("- Sensor temperature: %0.2f\n", (float)actualTemp / 10.0);
+    if (debugLevel >= 4)
+    {
+		ASI_SUPPORTED_MODE CamSupportedModes;
+		asiRetCode = ASIGetCameraSupportMode(CamNum, &CamSupportedModes);
+    	if (asiRetCode != ASI_SUCCESS)
+    	{
+        	printf("*** WARNING: unable to get camera supported modes (%s)\n", getRetCode(asiRetCode));
+    	}
+		else
+		{
+    		printf("Supported modes:\n");
+    		for (int i = 0; i < 16; ++i)
+    		{
+        		if (CamSupportedModes.SupportedCameraMode[i] == ASI_MODE_END)
+        		{
+            		break;
+        		}
+        		printf("   - %s ", getCameraMode(CamSupportedModes.SupportedCameraMode[i]));
+    		}
+    		printf("\n");
+    	}
+    }
 
     // Handle "auto" Image_type.
     if (Image_type == AUTO_IMAGE_TYPE)
@@ -2239,7 +2290,15 @@ const char *locale = DEFAULT_LOCALE;
                 }
                 else
                 {
-                    Log(2, "Using the last night exposure of %s\n", length_in_units(current_exposure_us, true));
+					// If gain changes, we have to change the exposure time to get an equally
+					// exposed image.
+					// ZWO gain has unit 0.1dB, so we have to convert the gain values to a factor first
+					//    newExp = (oldExp * oldGain) / newGain
+					// e.g.  20s = (10s    * 2.0)     / (1.0) 
+
+                    // current values are here the last night values
+                    current_exposure_us = (current_exposure_us * pow(10, (float)currentGain / 10.0 / 20.0)) / pow(10, (float)asiDayGain / 10.0 / 20.0);
+                    Log(2, "Using the last night exposure, old and new Gain to calculate new exposure of %s\n", length_in_units(current_exposure_us, true));
                 }
 
                 current_max_autoexposure_us = asi_day_max_autoexposure_ms * US_IN_MS;
@@ -2391,16 +2450,16 @@ const char *locale = DEFAULT_LOCALE;
         {
             // date/time is added to many log entries to make it easier to associate them
             // with an image (which has the date/time in the filename).
-            timeval t;
-            t = getTimeval();
+            timeval tStart;
+            tStart = getTimeval();
             char exposureStart[128];
             char f[10] = "%F %T";
-            sprintf(exposureStart, "%s", formatTime(t, f));
+            sprintf(exposureStart, "%s", formatTime(tStart, f));
             Log(0, "STARTING EXPOSURE at: %s   @ %s\n", exposureStart, length_in_units(current_exposure_us, true));
 
             // Get start time for overlay.  Make sure it has the same time as exposureStart.
             if (showTime == 1)
-            	sprintf(bufTime, "%s", formatTime(t, timeFormat));
+            	sprintf(bufTime, "%s", formatTime(tStart, timeFormat));
 
             asiRetCode = takeOneExposure(CamNum, current_exposure_us, pRgb.data, width, height, (ASI_IMG_TYPE) Image_type, histogram, &mean);
             if (asiRetCode == ASI_SUCCESS)
@@ -2992,7 +3051,7 @@ printf(" >xxx mean was %d and went from %d below min of %d to %d above max of %d
 					{
 						// Create the name of the file that goes in the images/<date> directory.
 						snprintf(final_file_name, sizeof(final_file_name), "%s-%s.%s",
-							fileNameOnly, formatTime(t, "%Y%m%d%H%M%S"), imagetype);
+							fileNameOnly, formatTime(tStart, "%Y%m%d%H%M%S"), imagetype);
 					}
 					snprintf(full_filename, sizeof(full_filename), "%s/%s", save_dir, final_file_name);
 
