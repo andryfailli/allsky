@@ -40,7 +40,7 @@ Make sure you have a working internet connection by setting it through [the term
 
 2. Now fetch the code from this GitHub page:
     ```shell
-    git clone --recursive https://github.com/thomasjacquin/allsky.git
+    git clone --recursive https://github.com/andryfailli/allsky.git
     ```
 
 3. Then navigate to the allsky directory:
