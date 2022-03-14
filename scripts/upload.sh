@@ -118,7 +118,8 @@ set +H # XXXX needed so !! isn't processed in REMOTE_PASSWORD
 
 		# Sometimes have problems with "max-reties 1", so make it 2
 		echo set net:max-retries 2
-		echo set net:timeout 10
+		echo set net:timeout 180
+		echo set "sftp:connect-program 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -a -x -v'"
 
 		echo "open --user '${REMOTE_USER}' --password '${P}' '${PROTOCOL}://${REMOTE_HOST}'"
 		# unlikely, but just in case it's already there
@@ -129,7 +130,7 @@ set +H # XXXX needed so !! isn't processed in REMOTE_PASSWORD
 
 		echo exit 0
 	) > "${LFTP_CMDS}"
-	lftp -f "${LFTP_CMDS}" > "${LOG}" 2>&1
+	lftp -d -f "${LFTP_CMDS}" > "${LOG}" 2>&1
 	RET=$?
 
 	if [ ${RET} -ne 0 ] ; then
