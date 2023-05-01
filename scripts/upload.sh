@@ -119,7 +119,12 @@ set +H # XXXX needed so !! isn't processed in REMOTE_PASSWORD
 		# Sometimes have problems with "max-reties 1", so make it 2
 		echo set net:max-retries 2
 		echo set net:timeout 180
-		echo set "sftp:connect-program 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -a -x -v'"
+		
+		# DreamHost SFTP
+		# echo set "sftp:connect-program 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -a -x -v'"
+		
+		# Astronomitaly FTP
+		# echo set ssl:verify-certificate false
 
 		echo "open --user '${REMOTE_USER}' --password '${P}' '${PROTOCOL}://${REMOTE_HOST}'"
 		# unlikely, but just in case it's already there
